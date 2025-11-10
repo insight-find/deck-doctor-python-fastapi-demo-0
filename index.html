@@ -1,48 +1,113 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>PPTX Edit Demo</title>
+  <meta charset="UTF-8" />
+  <title>PPTX Bulk Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 650px;
+      margin: 2rem auto;
+      padding: 1rem;
+    }
+    .pair {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    input[type="text"] {
+      flex: 1;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+    }
+    #pairs-container {
+      margin-bottom: 1rem;
+    }
+  </style>
 </head>
 <body>
-  <h3>Upload PPTX and replace token {{NAME}}</h3>
-  <form id="frm">
-    <input type="file" id="pptfile" name="file" accept=".pptx" required /><br/>
-    <input type="text" id="name" name="name" placeholder="Replacement name" value="Alice" required /><br/>
-    <button type="submit">Upload & Modify</button>
+  <h2>PPTX Multi-Replace Editor ⚙️</h2>
+
+  <form id="ppt-form">
+    <label>PPTX File:</label><br />
+    <input type="file" id="ppt-file" accept=".pptx" required /><br /><br />
+
+    <h3>Replacements</h3>
+    <div id="pairs-container"></div>
+
+    <button type="button" id="add-pair">Add Replacement</button><br /><br />
+
+    <button type="submit">Modify PPTX</button>
   </form>
 
   <script>
-    const form = document.getElementById('frm');
-    form.addEventListener('submit', async (e) => {
+    const container = document.getElementById("pairs-container");
+    const addBtn = document.getElementById("add-pair");
+
+    function addPair(token = "", replacement = "") {
+      const div = document.createElement("div");
+      div.className = "pair";
+      div.innerHTML = `
+        <input type="text" placeholder="Token (e.g., {{NAME}})" class="token" value="${token}" />
+        <input type="text" placeholder="Replacement" class="replacement" value="${replacement}" />
+        <button type="button" class="remove">✕</button>
+      `;
+      div.querySelector(".remove").onclick = () => div.remove();
+      container.appendChild(div);
+    }
+
+    addBtn.onclick = () => addPair();
+
+    // One default empty line
+    addPair();
+
+    document.getElementById("ppt-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const fileInput = document.getElementById('pptfile');
-      const name = document.getElementById('name').value;
-      if (!fileInput.files.length) return alert('Choose a .pptx file');
 
-      const formData = new FormData();
-      formData.append('file', fileInput.files[0]);
-      formData.append('name', name);
-
-      const resp = await fetch('/modify-pptx', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!resp.ok) {
-        const txt = await resp.text();
-        alert('Error: ' + txt);
+      const fileInput = document.getElementById("ppt-file");
+      if (!fileInput.files.length) {
+        alert("Upload a PPTX file first.");
         return;
       }
 
-      const blob = await resp.blob();
+      const replacements = [];
+      document.querySelectorAll(".pair").forEach((row) => {
+        const token = row.querySelector(".token").value.trim();
+        const replacement = row.querySelector(".replacement").value.trim();
+        if (token.length > 0) {
+          replacements.push({ token, replacement });
+        }
+      });
+
+      if (replacements.length === 0) {
+        alert("Add at least one replacement pair.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      formData.append("replacements", JSON.stringify(replacements));
+
+      const res = await fetch("/modify-pptx", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        alert("Server error");
+        return;
+      }
+
+      // Download file
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
-      a.download = 'modified-' + fileInput.files[0].name;
-      document.body.appendChild(a);
+      a.download = "modified-" + fileInput.files[0].name;
       a.click();
-      a.remove();
       URL.revokeObjectURL(url);
     });
   </script>
